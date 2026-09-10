@@ -37,6 +37,25 @@ export function ProjectDetail({
     });
   }, [tasks, filter, search]);
 
+  function handleExport() {
+    const exportData = {
+      project,
+      tasks,
+      exportedAt: new Date().toISOString(),
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: 'application/json',
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${project.title}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="w-full flex flex-col">
       <section className="w-full px-4 sm:px-8 py-4 bg-white border-b border-outline-variant/30">
@@ -52,13 +71,22 @@ export function ProjectDetail({
               </p>
             </div>
           </div>
-          <button
-            onClick={onCreateTask}
-            className="inline-flex items-center gap-1.5 px-4 h-9 rounded-xl bg-primary text-white hover:bg-primary-container transition-colors text-sm font-medium shadow-sm"
-          >
-            <span className="material-symbols-outlined text-base">add</span>
-            Задача
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center gap-1.5 px-4 h-9 rounded-xl border border-outline-variant/40 text-on-surface hover:bg-surface-container-low transition-colors text-sm font-medium"
+            >
+              <span className="material-symbols-outlined text-base">download</span>
+              Экспорт
+            </button>
+            <button
+              onClick={onCreateTask}
+              className="inline-flex items-center gap-1.5 px-4 h-9 rounded-xl bg-primary text-white hover:bg-primary-container transition-colors text-sm font-medium shadow-sm"
+            >
+              <span className="material-symbols-outlined text-base">add</span>
+              Задача
+            </button>
+          </div>
         </div>
       </section>
 
