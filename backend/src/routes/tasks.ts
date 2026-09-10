@@ -1,105 +1,135 @@
 import { Router } from 'express';
-import db from '../db';
+import {
+  getTasksByProject,
+  getLinksByProject,
+  createTask,
+  createDependency,
+  deleteTaskById,
+  deleteDependencyById,
+  findDependents,
+  shiftTask,
+  getTaskById
+} from '../db';
 
 const router = Router();
 
+// GET /api/tasks/project/:projectId — задачи + связи проекта
 router.get('/project/:projectId', (req, res) => {
   try {
-    const { projectId } = req.params;
-
-    const tasks = db.prepare(`
-      SELECT t.*, u.name as assignee_name 
-      FROM tasks t 
-      LEFT JOIN users u ON t.assignee_id = u.id 
-      WHERE t.project_id = ?
-    `).all(projectId);
-
-    const links = db.prepare(`
-      SELECT d.id, d.depends_on_task_id as source, d.task_id as target
-      FROM dependencies d
-      JOIN tasks t ON d.task_id = t.id
-      WHERE t.project_id = ?
-    `).all(projectId);
-
+    const projectId = Number(req.params.projectId);
+    const tasks = getTasksByProject(projectId);
+    const links = getLinksByProject(projectId);
     res.json({ tasks, links });
   } catch (error) {
-    res.status(500).json({ error: '������ ��������� ����� �������' });
+    console.error(error);
+    res.status(500).json({ error: 'Ошибка получения задач проекта' });
   }
 });
 
+// POST /api/tasks/project/:projectId — создать задачу
 router.post('/project/:projectId', (req, res) => {
   try {
-    const { projectId } = req.params;
+    const projectId = Number(req.params.projectId);
     const { title, description, start_date, end_date, status, assignee_id } = req.body;
 
     if (!title || !start_date || !end_date) {
-      return res.status(400).json({ error: '��������, start_date � end_date �����������' });
+      return res.status(400).json({ error: 'Поля title, start_date и end_date обязательны' });
+    }
+    if (new Date(end_date) < new Date(start_date)) {
+      return res.status(400).json({ error: 'Дата окончания раньше даты начала' });
     }
 
-    const stmt = db.prepare(`
-      INSERT INTO tasks (project_id, title, description, start_date, end_date, status, assignee_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const info = stmt.run(
-      projectId,
-      title,
-      description || '',
-      start_date,
-      end_date,
-      status || 'todo',
-      assignee_id || null
-    );
-
-    res.status(201).json({
-      id: info.lastInsertRowid,
-      project_id: Number(projectId),
+    const task = createTask({
+      project_id: projectId,
       title,
       description,
       start_date,
       end_date,
-      status: status || 'todo',
+      status,
       assignee_id
     });
+    res.status(201).json(task);
   } catch (error) {
-    res.status(500).json({ error: '������ �������� ������' });
+    console.error(error);
+    res.status(500).json({ error: 'Ошибка создания задачи' });
   }
 });
 
+// POST /api/tasks/dependencies — создать связь
 router.post('/dependencies', (req, res) => {
   try {
     const { task_id, depends_on_task_id } = req.body;
 
     if (!task_id || !depends_on_task_id) {
-      return res.status(400).json({ error: '������� task_id � depends_on_task_id' });
+      return res.status(400).json({ error: 'Нужны task_id и depends_on_task_id' });
     }
-
     if (task_id === depends_on_task_id) {
-      return res.status(400).json({ error: '������ �� ����� �������� ���� �� ����' });
+      return res.status(400).json({ error: 'Задача не может зависеть сама от себя' });
     }
 
-    const stmt = db.prepare(`
-      INSERT INTO dependencies (task_id, depends_on_task_id) VALUES (?, ?)
-    `);
-    const info = stmt.run(task_id, depends_on_task_id);
-
-    res.status(201).json({
-      id: info.lastInsertRowid,
-      source: depends_on_task_id,
-      target: task_id
-    });
+    const link = createDependency(Number(task_id), Number(depends_on_task_id));
+    res.status(201).json(link);
   } catch (error) {
-    res.status(500).json({ error: '������ �������� ����� ����� ��������' });
+    console.error(error);
+    res.status(500).json({ error: 'Ошибка создания связи (возможно, уже существует)' });
   }
 });
 
+// GET /api/tasks/:id/dependents — какие задачи затронутся
+router.get('/:id/dependents', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!getTaskById(id)) {
+      return res.status(404).json({ error: 'Задача не найдена' });
+    }
+    res.json({ affected_task_ids: Array.from(findDependents(id)) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Ошибка получения зависимых задач' });
+  }
+});
+
+// POST /api/tasks/:id/shift — сдвинуть задачу и всех зависимых
+router.post('/:id/shift', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { days } = req.body;
+
+    if (typeof days !== 'number' || days === 0) {
+      return res.status(400).json({ error: 'Нужно число days (не 0)' });
+    }
+
+    const result = shiftTask(id, days);
+    if (!result) return res.status(404).json({ error: 'Задача не найдена' });
+
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Ошибка сдвига задачи' });
+  }
+});
+
+// DELETE /api/tasks/dependencies/:id — удалить связь
+router.delete('/dependencies/:id', (req, res) => {
+  try {
+    const ok = deleteDependencyById(Number(req.params.id));
+    if (!ok) return res.status(404).json({ error: 'Связь не найдена' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Ошибка удаления связи' });
+  }
+});
+
+// DELETE /api/tasks/:id — удалить задачу
 router.delete('/:id', (req, res) => {
   try {
-    const stmt = db.prepare('DELETE FROM tasks WHERE id = ?');
-    stmt.run(req.params.id);
-    res.json({ success: true, message: '������ �������' });
+    const ok = deleteTaskById(Number(req.params.id));
+    if (!ok) return res.status(404).json({ error: 'Задача не найдена' });
+    res.json({ success: true, message: 'Задача удалена' });
   } catch (error) {
-    res.status(500).json({ error: '������ �������� ������' });
+    console.error(error);
+    res.status(500).json({ error: 'Ошибка удаления задачи' });
   }
 });
 
