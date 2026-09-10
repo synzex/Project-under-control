@@ -1,59 +1,64 @@
 import { Router } from 'express';
-import db from '../db';
+import {
+  getAllProjects,
+  getProjectById,
+  createProject,
+  getAllUsers
+} from '../db';
 
 const router = Router();
 
+// GET /api/projects â€” Ğ²ÑĞµ Ğ¿Ñ€Ğ¾ĞµĞºÑ‚Ñ‹
 router.get('/', (req, res) => {
   try {
-    const projects = db.prepare('SELECT * FROM projects ORDER BY id DESC').all();
-    res.json(projects);
+    res.json(getAllProjects());
   } catch (error) {
-    res.status(500).json({ error: 'Îøèáêà ïîëó÷åíèÿ ïğîåêòîâ' });
+    console.error(error);
+    res.status(500).json({ error: 'ĞÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ğ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ¸Ñ Ğ¿Ñ€Ğ¾ĞµĞºÑ‚Ğ¾Ğ²' });
   }
 });
 
+// GET /api/projects/users/all â€” Ğ²ÑĞµ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ğ¸
 router.get('/users/all', (req, res) => {
   try {
-    const users = db.prepare('SELECT * FROM users').all();
-    res.json(users);
+    res.json(getAllUsers());
   } catch (error) {
-    res.status(500).json({ error: 'Îøèáêà ïîëó÷åíèÿ ïîëüçîâàòåëåé' });
+    console.error(error);
+    res.status(500).json({ error: 'ĞÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ğ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ¸Ñ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ĞµĞ¹' });
   }
 });
 
+// GET /api/projects/:id â€” Ğ¾Ğ´Ğ¸Ğ½ Ğ¿Ñ€Ğ¾ĞµĞºÑ‚
 router.get('/:id', (req, res) => {
   try {
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+    const project = getProjectById(Number(req.params.id));
     if (!project) {
-      return res.status(404).json({ error: 'Ïğîåêò íå íàéäåí' });
+      return res.status(404).json({ error: 'ĞŸÑ€Ğ¾ĞµĞºÑ‚ Ğ½Ğµ Ğ½Ğ°Ğ¹Ğ´ĞµĞ½' });
     }
     res.json(project);
   } catch (error) {
-    res.status(500).json({ error: 'Îøèáêà ïîëó÷åíèÿ ïğîåêòà' });
+    console.error(error);
+    res.status(500).json({ error: 'ĞÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ğ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ¸Ñ Ğ¿Ñ€Ğ¾ĞµĞºÑ‚Ğ°' });
   }
 });
 
+// POST /api/projects â€” ÑĞ¾Ğ·Ğ´Ğ°Ñ‚ÑŒ Ğ¿Ñ€Ğ¾ĞµĞºÑ‚
 router.post('/', (req, res) => {
   try {
     const { title, description, start_date, end_date } = req.body;
+
     if (!title || !start_date || !end_date) {
-      return res.status(400).json({ error: 'Íàçâàíèå, start_date è end_date îáÿçàòåëüíû' });
+      return res.status(400).json({ error: 'ĞŸĞ¾Ğ»Ñ title, start_date Ğ¸ end_date Ğ¾Ğ±ÑĞ·Ğ°Ñ‚ĞµĞ»ÑŒĞ½Ñ‹' });
+    }
+    if (new Date(end_date) < new Date(start_date)) {
+      return res.status(400).json({ error: 'Ğ”Ğ°Ñ‚Ğ° Ğ¾ĞºĞ¾Ğ½Ñ‡Ğ°Ğ½Ğ¸Ñ Ñ€Ğ°Ğ½ÑŒÑˆĞµ Ğ´Ğ°Ñ‚Ñ‹ Ğ½Ğ°Ñ‡Ğ°Ğ»Ğ°' });
     }
 
-    const stmt = db.prepare(
-      'INSERT INTO projects (title, description, start_date, end_date) VALUES (?, ?, ?, ?)'
-    );
-    const info = stmt.run(title, description || '', start_date, end_date);
-    
-    res.status(201).json({
-      id: info.lastInsertRowid,
-      title,
-      description,
-      start_date,
-      end_date
-    });
+    const project = createProject({ title, description, start_date, end_date });
+    res.status(201).json(project);
   } catch (error) {
-    res.status(500).json({ error: 'Îøèáêà ñîçäàíèÿ ïğîåêòà' });
+    console.error(error);
+    res.status(500).json({ error: 'ĞÑˆĞ¸Ğ±ĞºĞ° ÑĞ¾Ğ·Ğ´Ğ°Ğ½Ğ¸Ñ Ğ¿Ñ€Ğ¾ĞµĞºÑ‚Ğ°' });
   }
 });
 
