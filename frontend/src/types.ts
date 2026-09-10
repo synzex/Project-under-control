@@ -1,27 +1,48 @@
 export type TaskStatus = 'planned' | 'in_progress' | 'done';
 export type EffectiveStatus = TaskStatus | 'overdue';
 
+// ----- То, что приходит с API (БД-формат) -----
 export interface Project {
-  id: string;
-  name: string;
-  start: string; // ISO yyyy-mm-dd
-  end: string;   // ISO yyyy-mm-dd
+  id: number;
+  title: string;
+  description: string;
+  start_date: string;
+  end_date: string;
 }
 
 export interface Task {
-  id: string;
-  projectId: string;
-  name: string;
-  assignee: string;
-  status: TaskStatus;
-  start: string; // ISO yyyy-mm-dd
-  end: string;   // ISO yyyy-mm-dd
-  deps: string[]; // ids of prerequisite tasks
+  id: number;
+  project_id: number;
+  title: string;
   description: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  assignee_id: number | null;
 }
 
-export type View = 'list' | 'detail';
+// ----- То, что используется во фронте (после адаптеров) -----
+export interface ProjectView {
+  id: number;
+  title: string;
+  description: string;
+  start: string;
+  end: string;
+}
 
+export interface TaskView {
+  id: number;
+  projectId: number;
+  title: string;
+  description: string;
+  start: string;
+  end: string;
+  status: string;
+  assigneeId: number | null;
+  deps: number[];
+}
+
+// ----- Формы (то, что вводит пользователь) -----
 export interface TaskFormValues {
   name: string;
   start: string;
@@ -29,7 +50,7 @@ export interface TaskFormValues {
   assignee: string;
   status: TaskStatus;
   description: string;
-  deps: string[];
+  deps: number[];
 }
 
 export interface ProjectFormValues {
@@ -37,3 +58,5 @@ export interface ProjectFormValues {
   start: string;
   end: string;
 }
+
+export type View = 'list' | 'detail';

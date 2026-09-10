@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Task } from '../types';
+import type { TaskView } from '../types';
 import { addDays, daysBetween, isWeekend, MONTHS_SHORT, parseISO, todayAtMidnight, todayISO, toISO } from '../utils/date';
 import { effectiveStatus, STATUS_BAR_CLASSES } from '../utils/domain';
 
@@ -8,11 +8,11 @@ const ROW_HEIGHT = 52;
 
 interface GanttChartProps {
   /** all tasks of the project, used to compute a stable date axis */
-  allProjectTasks: Task[];
+  allProjectTasks: TaskView[];
   /** currently visible (filtered) tasks, rendered as rows */
-  visibleTasks: Task[];
-  highlightedIds: Set<string>;
-  onOpenTask: (id: string) => void;
+  visibleTasks: TaskView[];
+  highlightedIds: Set<number>;
+  onOpenTask: (id: number) => void;
 }
 
 interface BarPos {
@@ -36,7 +36,7 @@ export function GanttChart({ allProjectTasks, visibleTasks, highlightedIds, onOp
     return <div className="p-8 text-center text-sm text-on-surface-variant">Нет задач по выбранному фильтру</div>;
   }
 
-  const barPos = new Map<string, BarPos>();
+  const barPos = new Map<number, BarPos>();
   visibleTasks.forEach((t, i) => {
     const s = parseISO(t.start);
     const e = parseISO(t.end);
@@ -49,7 +49,6 @@ export function GanttChart({ allProjectTasks, visibleTasks, highlightedIds, onOp
   const todayOffset = daysBetween(minDate, todayAtMidnight()) * DAY_WIDTH;
   const ganttHeight = visibleTasks.length * ROW_HEIGHT;
 
-  // month header segments
   const monthSegs: { month: number; span: number }[] = [];
   let curMonth = -1;
   let segStart = 0;
@@ -151,13 +150,13 @@ export function GanttChart({ allProjectTasks, visibleTasks, highlightedIds, onOp
               <div key={t.id} className="absolute flex items-center" style={{ left: pos.x1, top: i * ROW_HEIGHT, height: ROW_HEIGHT }}>
                 <button
                   onClick={() => onOpenTask(t.id)}
-                  title={`${t.name} · ${t.start} — ${t.end}`}
+                  title={`${t.title} · ${t.start} — ${t.end}`}
                   className={`h-7 rounded-md flex items-center px-2 text-[11px] font-medium shadow-sm whitespace-nowrap overflow-hidden ${STATUS_BAR_CLASSES[es]} ${
                     isHighlighted ? 'ring-2 ring-amber-400 animate-pulse' : ''
                   }`}
                   style={{ width: pos.x2 - pos.x1 }}
                 >
-                  {t.name}
+                  {t.title}
                 </button>
               </div>
             );

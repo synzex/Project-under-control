@@ -3,7 +3,9 @@ import {
   getTasksByProject,
   getLinksByProject,
   createTask,
+  updateTask,
   createDependency,
+  setTaskDependencies,
   deleteTaskById,
   deleteDependencyById,
   findDependents,
@@ -55,7 +57,7 @@ router.post('/project/:projectId', (req, res) => {
   }
 });
 
-// POST /api/tasks/dependencies — создать связь
+// POST /api/tasks/dependencies — создать одну связь
 router.post('/dependencies', (req, res) => {
   try {
     const { task_id, depends_on_task_id } = req.body;
@@ -106,6 +108,55 @@ router.post('/:id/shift', (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Ошибка сдвига задачи' });
+  }
+});
+
+// PUT /api/tasks/:id/dependencies — заменить зависимости задачи
+// ВАЖНО: должно быть ВЫШЕ PUT /:id
+router.put('/:id/dependencies', (req, res) => {
+  try {
+    const taskId = Number(req.params.id);
+    const { deps } = req.body;
+
+    if (!Array.isArray(deps)) {
+      return res.status(400).json({ error: 'deps должен быть массивом' });
+    }
+    if (!getTaskById(taskId)) {
+      return res.status(404).json({ error: 'Задача не найдена' });
+    }
+
+    const result = setTaskDependencies(taskId, deps.map(Number));
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Ошибка сохранения зависимостей' });
+  }
+});
+
+// PUT /api/tasks/:id — обновить задачу
+router.put('/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { title, description, start_date, end_date, status, assignee_id } = req.body;
+
+    if (end_date && start_date && new Date(end_date) < new Date(start_date)) {
+      return res.status(400).json({ error: 'Дата окончания раньше даты начала' });
+    }
+
+    const updated = updateTask(id, {
+      title,
+      description,
+      start_date,
+      end_date,
+      status,
+      assignee_id,
+    });
+
+    if (!updated) return res.status(404).json({ error: 'Задача не найдена' });
+    res.json(updated);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Ошибка обновления задачи' });
   }
 });
 

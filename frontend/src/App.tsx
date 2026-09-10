@@ -1,22 +1,25 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Header } from './components/Header';
 import { ProjectList } from './components/ProjectList';
 import { ProjectDetail } from './components/ProjectDetail';
 import { ProjectModal } from './components/ProjectModal';
 import { TaskDrawer } from './components/TaskDrawer';
 import { useAppState } from './state/useAppState';
-import type { View } from './types';
+import type { View, TaskFormValues } from './types';
 
 export default function App() {
-  const { projects, tasks, tasksForProject, projectProgress, overdueCount, createProject, createTask, updateTask, deleteTask } =
-    useAppState();
+  const {
+    projects, tasks, tasksForProject, projectProgress, overdueCount,
+    loadTasksForProject,
+    createProject, createTask, updateTask, deleteTask,
+  } = useAppState();
 
   const [view, setView] = useState<View>('list');
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
   const [showProjectModal, setShowProjectModal] = useState(false);
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+  const [highlightedIds, setHighlightedIds] = useState<Set<number>>(new Set());
   const [affectedNames, setAffectedNames] = useState<string[]>([]);
 
   const goList = useCallback(() => {
@@ -24,12 +27,13 @@ export default function App() {
     setCurrentProjectId(null);
   }, []);
 
-  const openProject = useCallback((id: string) => {
+  const openProject = useCallback(async (id: number) => {
     setCurrentProjectId(id);
     setView('detail');
-  }, []);
+    await loadTasksForProject(id);
+  }, [loadTasksForProject]);
 
-  const openTaskDrawer = useCallback((id: string | null) => {
+  const openTaskDrawer = useCallback((id: number | null) => {
     setEditingTaskId(id);
     setDrawerOpen(true);
   }, []);
@@ -43,28 +47,21 @@ export default function App() {
   const projectTasks = currentProjectId ? tasksForProject(currentProjectId) : [];
   const editingTask = editingTaskId ? (tasks.find((t) => t.id === editingTaskId) ?? null) : null;
 
-  function handleSaveTask(values: Parameters<typeof createTask>[1]) {
+  async function handleSaveTask(values: TaskFormValues) {
     if (!currentProjectId) return;
+
     if (editingTaskId) {
-      const affected = updateTask(editingTaskId, values);
-      if (affected.length) {
-        setHighlightedIds(new Set(affected));
-        setAffectedNames(affected.map((id) => tasks.find((t) => t.id === id)?.name).filter((n): n is string => !!n));
-        window.setTimeout(() => {
-          setHighlightedIds(new Set());
-          setAffectedNames([]);
-        }, 6000);
-      }
+      await updateTask(editingTaskId, values);
     } else {
-      createTask(currentProjectId, values);
+      await createTask(currentProjectId, values);
     }
     closeTaskDrawer();
   }
 
-  function handleDeleteTask() {
+  async function handleDeleteTask() {
     if (!editingTaskId) return;
     if (!window.confirm('Удалить задачу? Связи с другими задачами тоже будут удалены.')) return;
-    deleteTask(editingTaskId);
+    await deleteTask(editingTaskId);
     closeTaskDrawer();
   }
 
@@ -98,8 +95,8 @@ export default function App() {
       {showProjectModal && (
         <ProjectModal
           onClose={() => setShowProjectModal(false)}
-          onSave={(values) => {
-            const p = createProject(values);
+          onSave={async (values) => {
+            const p = await createProject(values);
             setShowProjectModal(false);
             openProject(p.id);
           }}

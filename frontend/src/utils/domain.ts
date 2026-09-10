@@ -1,9 +1,10 @@
-import type { EffectiveStatus, Task, TaskStatus } from '../types';
+import type { EffectiveStatus, Task, TaskStatus, TaskView } from '../types';
 import { parseISO, todayAtMidnight } from './date';
 
 const AVATAR_COLORS = ['#4f46e5', '#0ea5e9', '#059669', '#d97706', '#db2777', '#7c3aed'];
 
-export function initials(name: string): string {
+export function initials(name?: string): string {
+  if (!name) return '?';
   return name
     .trim()
     .split(/\s+/)
@@ -13,15 +14,16 @@ export function initials(name: string): string {
     .toUpperCase();
 }
 
-export function colorForName(name: string): string {
+export function colorForName(name?: string): string {
+  if (!name) return '#94a3b8';
   let hash = 0;
   for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) % AVATAR_COLORS.length;
   return AVATAR_COLORS[hash];
 }
 
 export function effectiveStatus(task: Task): EffectiveStatus {
-  if (task.status !== 'done' && parseISO(task.end) < todayAtMidnight()) return 'overdue';
-  return task.status;
+  if (task.status !== 'done' && parseISO(task.end_date) < todayAtMidnight()) return 'overdue';
+  return task.status as TaskStatus;
 }
 
 export const STATUS_LABELS: Record<EffectiveStatus, string> = {
@@ -47,12 +49,15 @@ export const STATUS_BAR_CLASSES: Record<EffectiveStatus, string> = {
 
 export const ALL_STATUSES: TaskStatus[] = ['planned', 'in_progress', 'done'];
 
-/** Transitive downstream dependents of a task within its project (BFS). */
-export function downstreamOf(taskId: string, tasksInProject: Task[]): string[] {
-  const result = new Set<string>();
+// ============================================================
+// Проверка циклов
+// ============================================================
+
+export function downstreamOf(taskId: number, tasksInProject: TaskView[]): number[] {
+  const result = new Set<number>();
   let frontier = [taskId];
   while (frontier.length) {
-    const next: string[] = [];
+    const next: number[] = [];
     for (const id of frontier) {
       for (const t of tasksInProject) {
         if (t.deps.includes(id) && !result.has(t.id)) {
@@ -66,8 +71,11 @@ export function downstreamOf(taskId: string, tasksInProject: Task[]): string[] {
   return [...result];
 }
 
-/** Prevents cycles: true if `candidateDepId` (in)directly depends on `taskId` already. */
-export function wouldCreateCycle(taskId: string, candidateDepId: string, tasksInProject: Task[]): boolean {
+export function wouldCreateCycle(
+  taskId: number,
+  candidateDepId: number,
+  tasksInProject: TaskView[]
+): boolean {
   if (taskId === candidateDepId) return true;
   return downstreamOf(taskId, tasksInProject).includes(candidateDepId);
 }

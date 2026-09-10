@@ -1,82 +1,144 @@
-import { useCallback, useMemo, useState } from 'react';
-import type { Project, ProjectFormValues, Task, TaskFormValues } from '../types';
-import { seedData, uid } from '../data/seed';
-import { downstreamOf, effectiveStatus } from '../utils/domain';
+import { useCallback, useEffect, useState } from 'react';
+import type { ProjectView, TaskView, ProjectFormValues, TaskFormValues } from '../types';
+import * as api from '../api';
 
 export function useAppState() {
-  // seed once so project/task ids reference each other correctly
-  const [seed] = useState(() => seedData());
-  const [projects, setProjects] = useState<Project[]>(seed.projects);
-  const [tasks, setTasks] = useState<Task[]>(seed.tasks);
+  const [projects, setProjects] = useState<ProjectView[]>([]);
+  const [tasks, setTasks] = useState<TaskView[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.fetchProjects()
+      .then(setProjects)
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const loadTasksForProject = useCallback(async (projectId: number) => {
+    try {
+      const { tasks: t } = await api.fetchTasksByProject(projectId);
+      setTasks(t);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }, []);
+
+  const createProject = useCallback(async (values: ProjectFormValues) => {
+    const p = await api.createProjectRemote({
+      title: values.name,
+      description: '',
+      start_date: values.start,
+      end_date: values.end,
+    });
+    setProjects(prev => [...prev, p]);
+    return p;
+  }, []);
+
+  const parseAssignee = (s: string): number | null => {
+    if (!s || !s.trim()) return null;
+    const n = Number(s.trim());
+    return Number.isInteger(n) && n > 0 ? n : null;
+  };
+
+  const createTask = useCallback(async (projectId: number, values: TaskFormValues) => {
+    // 1. Создаём задачу
+    const t = await api.createTaskRemote(projectId, {
+      title: values.name,
+      description: values.description,
+      start_date: values.start,
+      end_date: values.end,
+      status: values.status,
+      assignee_id: parseAssignee(values.assignee),
+    });
+
+    // 2. Сохраняем зависимости
+    const deps = values.deps ?? [];
+    if (deps.length > 0) {
+      await api.setTaskDependenciesRemote(t.id, deps);
+      t.deps = deps;
+    }
+
+    setTasks(prev => [...prev, t]);
+    return t;
+  }, []);
+
+  const updateTask = useCallback(async (taskId: number, values: TaskFormValues) => {
+    // 1. Обновляем саму задачу
+    const t = await api.updateTaskRemote(taskId, {
+      title: values.name,
+      description: values.description,
+      start_date: values.start,
+      end_date: values.end,
+      status: values.status,
+      assignee_id: parseAssignee(values.assignee),
+    });
+
+    // 2. Обновляем зависимости (заменяем все)
+    const deps = values.deps ?? [];
+    await api.setTaskDependenciesRemote(taskId, deps);
+    t.deps = deps;
+
+    setTasks(prev => prev.map(task => task.id === taskId ? t : task));
+    return t;
+  }, []);
+
+  const deleteTask = useCallback(async (taskId: number) => {
+    await api.deleteTaskRemote(taskId);
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+  }, []);
+
+  const shiftTask = useCallback(async (taskId: number, days: number) => {
+    const result = await api.shiftTaskRemote(taskId, days);
+    const current = tasks.find(t => t.id === taskId);
+    if (current) await loadTasksForProject(current.projectId);
+    return result;
+  }, [tasks, loadTasksForProject]);
 
   const tasksForProject = useCallback(
-    (projectId: string) => tasks.filter((t) => t.projectId === projectId),
+    (projectId: number) => tasks.filter(t => t.projectId === projectId),
     [tasks],
   );
 
   const projectProgress = useCallback(
-    (projectId: string) => {
+    (projectId: number) => {
       const ts = tasksForProject(projectId);
       if (!ts.length) return 0;
-      const done = ts.filter((t) => t.status === 'done').length;
+      const done = ts.filter(t => t.status === 'done').length;
       return Math.round((done / ts.length) * 100);
     },
     [tasksForProject],
   );
 
-  const createProject = useCallback((values: ProjectFormValues) => {
-    const p: Project = { id: uid('p'), ...values };
-    setProjects((prev) => [...prev, p]);
-    return p;
-  }, []);
-
-  const createTask = useCallback((projectId: string, values: TaskFormValues) => {
-    const t: Task = { id: uid('t'), projectId, ...values };
-    setTasks((prev) => [...prev, t]);
-    return t;
-  }, []);
-
-  /** Returns ids of downstream tasks that may be affected if dates changed. */
-  const updateTask = useCallback(
-    (taskId: string, values: TaskFormValues): string[] => {
-      let affected: string[] = [];
-      setTasks((prev) => {
-        const current = prev.find((t) => t.id === taskId);
-        const datesChanged = !!current && (current.start !== values.start || current.end !== values.end);
-        const next = prev.map((t) => (t.id === taskId ? { ...t, ...values } : t));
-        if (datesChanged && current) {
-          affected = downstreamOf(taskId, next.filter((t) => t.projectId === current.projectId));
-        }
-        return next;
-      });
-      return affected;
-    },
-    [],
-  );
-
-  const deleteTask = useCallback((taskId: string) => {
-    setTasks((prev) =>
-      prev.filter((t) => t.id !== taskId).map((t) => ({ ...t, deps: t.deps.filter((d) => d !== taskId) })),
-    );
-  }, []);
-
   const overdueCount = useCallback(
-    (projectId: string) => tasksForProject(projectId).filter((t) => effectiveStatus(t) === 'overdue').length,
+    (projectId: number) => {
+      const today = new Date().toISOString().slice(0, 10);
+      return tasksForProject(projectId).filter(
+        t => t.end < today && t.status !== 'done'
+      ).length;
+    },
     [tasksForProject],
   );
 
-  return useMemo(
-    () => ({
-      projects,
-      tasks,
-      tasksForProject,
-      projectProgress,
-      overdueCount,
-      createProject,
-      createTask,
-      updateTask,
-      deleteTask,
-    }),
-    [projects, tasks, tasksForProject, projectProgress, overdueCount, createProject, createTask, updateTask, deleteTask],
+  const taskCount = useCallback(
+    (projectId: number) => tasks.filter(t => t.projectId === projectId).length,
+    [tasks],
   );
+
+  return {
+    projects,
+    tasks,
+    loading,
+    error,
+    taskCount,
+    tasksForProject,
+    projectProgress,
+    overdueCount,
+    loadTasksForProject,
+    createProject,
+    createTask,
+    updateTask,
+    deleteTask,
+    shiftTask,
+  };
 }

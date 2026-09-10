@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { Project, Task } from '../types';
+import type { ProjectView, TaskView } from '../types';
 import { formatShort } from '../utils/date';
 import { effectiveStatus } from '../utils/domain';
 import { GanttChart } from './GanttChart';
@@ -7,13 +7,13 @@ import { StatusFilters, type FilterValue } from './StatusFilters';
 import { TaskSideList } from './TaskSideList';
 
 interface ProjectDetailProps {
-  project: Project;
-  tasks: Task[]; // all tasks belonging to this project
-  highlightedIds: Set<string>;
+  project: ProjectView;
+  tasks: TaskView[];
+  highlightedIds: Set<number>;
   affectedNames: string[];
   onBack: () => void;
   onCreateTask: () => void;
-  onOpenTask: (id: string) => void;
+  onOpenTask: (id: number) => void;
 }
 
 export function ProjectDetail({
@@ -32,7 +32,7 @@ export function ProjectDetail({
     return tasks.filter((t) => {
       const es = effectiveStatus(t);
       if (filter !== 'all' && es !== filter) return false;
-      if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
   }, [tasks, filter, search]);
@@ -46,7 +46,7 @@ export function ProjectDetail({
               <span className="material-symbols-outlined text-lg">arrow_back</span>
             </button>
             <div className="min-w-0">
-              <h1 className="font-display text-lg font-semibold truncate">{project.name}</h1>
+              <h1 className="font-display text-lg font-semibold truncate">{project.title}</h1>
               <p className="text-xs text-on-surface-variant">
                 {formatShort(project.start)} — {formatShort(project.end)} · {tasks.length} задач
               </p>

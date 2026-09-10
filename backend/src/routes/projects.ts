@@ -47,6 +47,8 @@ router.post('/', (req, res) => {
   try {
     const { title, description, start_date, end_date } = req.body;
 
+    console.log(title, description, start_date, end_date);
+
     if (!title || !start_date || !end_date) {
       return res.status(400).json({ error: 'Поля title, start_date и end_date обязательны' });
     }

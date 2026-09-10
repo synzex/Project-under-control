@@ -1,13 +1,13 @@
-import type { Project } from '../types';
+import type { ProjectView } from '../types';
 import { colorForName, initials } from '../utils/domain';
 import { formatShort } from '../utils/date';
 
 interface ProjectListProps {
-  projects: Project[];
-  taskCount: (projectId: string) => number;
-  progress: (projectId: string) => number;
-  overdueCount: (projectId: string) => number;
-  onOpenProject: (id: string) => void;
+  projects: ProjectView[];
+  taskCount: (projectId: number) => number;
+  progress: (projectId: number) => number;
+  overdueCount: (projectId: number) => number;
+  onOpenProject: (id: number) => void;
   onCreateProject: () => void;
 }
 
@@ -61,12 +61,12 @@ export function ProjectList({
                     <div className="col-span-5 flex items-center gap-3 min-w-0">
                       <div
                         className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-semibold text-xs shrink-0"
-                        style={{ background: colorForName(p.name) }}
+                        style={{ background: colorForName(p.title) }}
                       >
-                        {initials(p.name)}
+                        {initials(p.title)}
                       </div>
                       <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">{p.name}</div>
+                        <div className="text-sm font-medium truncate">{p.title}</div>
                         <div className="text-xs text-on-surface-variant">
                           {taskCount(p.id)} задач
                           {overdue > 0 && <span className="text-error"> · {overdue} просрочено</span>}

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import type { Task, TaskFormValues, TaskStatus } from '../types';
+import type { TaskView, TaskFormValues, TaskStatus } from '../types';
 import { addDays, todayISO, toISO } from '../utils/date';
 import { wouldCreateCycle } from '../utils/domain';
 
 interface TaskDrawerProps {
-  task: Task | null; // null = create mode
-  otherTasksInProject: Task[];
+  task: TaskView | null;             // ← Task → TaskView
+  otherTasksInProject: TaskView[];   // ← Task[] → TaskView[]
   onClose: () => void;
   onSave: (values: TaskFormValues) => void;
   onDelete: () => void;
@@ -20,13 +20,13 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
 export function TaskDrawer({ task, otherTasksInProject, onClose, onSave, onDelete }: TaskDrawerProps) {
   const isEdit = !!task;
 
-  const [name, setName] = useState(task?.name ?? '');
-  const [start, setStart] = useState(task?.start ?? todayISO());
-  const [end, setEnd] = useState(task?.end ?? toISO(addDays(new Date(), 5)));
-  const [assignee, setAssignee] = useState(task?.assignee ?? '');
-  const [status, setStatus] = useState<TaskStatus>(task?.status ?? 'planned');
+  const [name, setName] = useState(task?.title ?? '');            // ← name → title
+  const [start, setStart] = useState(task?.start ?? todayISO());  // ✅ start есть
+  const [end, setEnd] = useState(task?.end ?? toISO(addDays(new Date(), 5)));  // ✅ end есть
+  const [assignee, setAssignee] = useState(task?.assigneeId?.toString() ?? ''); // ← assigneeId → string
+  const [status, setStatus] = useState<TaskStatus>(task?.status as TaskStatus ?? 'planned');
   const [description, setDescription] = useState(task?.description ?? '');
-  const [deps, setDeps] = useState<string[]>(task?.deps ?? []);
+  const [deps, setDeps] = useState<number[]>(task?.deps ?? []);   // ← string[] → number[]
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -35,7 +35,7 @@ export function TaskDrawer({ task, otherTasksInProject, onClose, onSave, onDelet
     return () => cancelAnimationFrame(id);
   }, []);
 
-  function toggleDep(id: string) {
+  function toggleDep(id: number) {                                // ← string → number
     setDeps((prev) => (prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]));
   }
 
@@ -48,7 +48,15 @@ export function TaskDrawer({ task, otherTasksInProject, onClose, onSave, onDelet
       setError('Дата окончания раньше даты начала');
       return;
     }
-    onSave({ name: name.trim(), start, end, assignee: assignee.trim(), status, description: description.trim(), deps });
+    onSave({
+      name: name.trim(),
+      start,
+      end,
+      assignee: assignee.trim(),
+      status,
+      description: description.trim(),
+      deps,
+    });
   }
 
   return (
@@ -98,12 +106,12 @@ export function TaskDrawer({ task, otherTasksInProject, onClose, onSave, onDelet
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-on-surface-variant">Ответственный</label>
+            <label className="text-xs font-medium text-on-surface-variant">Ответственный (ID пользователя)</label>
             <input
               value={assignee}
               onChange={(e) => setAssignee(e.target.value)}
               type="text"
-              placeholder="Имя ответственного"
+              placeholder="Например, 1"
               className="h-10 px-3 rounded-xl bg-surface-container-low text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
@@ -128,7 +136,7 @@ export function TaskDrawer({ task, otherTasksInProject, onClose, onSave, onDelet
                 <span className="text-xs text-on-surface-variant">В проекте пока нет других задач</span>
               ) : (
                 otherTasksInProject.map((o) => {
-                  const disabled = !!task && wouldCreateCycle(task.id, o.id, otherTasksInProject.concat(task));
+                  const disabled = !!task && wouldCreateCycle(task.id, o.id, task ? [...otherTasksInProject, task] : otherTasksInProject);
                   return (
                     <label key={o.id} className={`flex items-center gap-2 text-sm ${disabled ? 'opacity-40' : 'cursor-pointer'}`}>
                       <input
@@ -138,7 +146,7 @@ export function TaskDrawer({ task, otherTasksInProject, onClose, onSave, onDelet
                         onChange={() => toggleDep(o.id)}
                         className="rounded text-primary"
                       />
-                      <span className="truncate">{o.name}</span>
+                      <span className="truncate">{o.title}</span>
                     </label>
                   );
                 })
