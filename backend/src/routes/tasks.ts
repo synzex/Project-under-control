@@ -111,8 +111,6 @@ router.post('/:id/shift', (req, res) => {
   }
 });
 
-// PUT /api/tasks/:id/dependencies — заменить зависимости задачи
-// ВАЖНО: должно быть ВЫШЕ PUT /:id
 router.put('/:id/dependencies', (req, res) => {
   try {
     const taskId = Number(req.params.id);
@@ -125,10 +123,12 @@ router.put('/:id/dependencies', (req, res) => {
       return res.status(404).json({ error: 'Задача не найдена' });
     }
 
-    const result = setTaskDependencies(taskId, deps.map(Number));
+    //console.log('🔍 setTaskDependencies:', { taskId, deps });
+
+    const result = setTaskDependencies(taskId, deps);
     res.json(result);
   } catch (error) {
-    console.error(error);
+    console.error('❌ setTaskDependencies failed:', error);
     res.status(500).json({ error: 'Ошибка сохранения зависимостей' });
   }
 });

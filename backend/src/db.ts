@@ -206,18 +206,46 @@ export function createDependency(task_id: number, depends_on_task_id: number) {
   };
 }
 
-export function setTaskDependencies(taskId: number, dependsOnIds: number[]) {
+export function setTaskDependencies(taskId: number, dependsOnIds: any[]) {
+  // Приводим taskId к числу
+  const safeTaskId = Number(taskId);
+  if (!Number.isInteger(safeTaskId) || safeTaskId <= 0) {
+    throw new Error(`Invalid taskId: ${taskId}`);
+  }
+
+  // Проверяем, что задача существует
+  const taskExists = db.prepare('SELECT id FROM tasks WHERE id = ?').get(safeTaskId);
+  if (!taskExists) {
+    throw new Error(`Task ${safeTaskId} not found`);
+  }
+
+  // Фильтруем deps — только валидные id
+  const validIds: number[] = [];
+  for (const raw of dependsOnIds) {
+    const n = Number(raw);
+    // Только целые > 0
+    if (!Number.isInteger(n) || n <= 0) continue;
+    // Не сама задача
+    if (n === safeTaskId) continue;
+    // Существует в БД
+    const dep = db.prepare('SELECT id FROM tasks WHERE id = ?').get(n);
+    if (dep) validIds.push(n);
+  }
+
+  // Транзакция
   const tx = db.transaction(() => {
-    db.prepare('DELETE FROM dependencies WHERE task_id = ?').run(taskId);
+    db.prepare('DELETE FROM dependencies WHERE task_id = ?').run(safeTaskId);
+
     const insert = db.prepare(
       'INSERT INTO dependencies (task_id, depends_on_task_id) VALUES (?, ?)'
     );
-    for (const depId of dependsOnIds) {
-      if (depId !== taskId) insert.run(taskId, depId);
+    for (const depId of validIds) {
+      insert.run(safeTaskId, depId);
     }
   });
   tx();
-  return { task_id: taskId, deps: dependsOnIds };
+
+  return { task_id: safeTaskId, deps: validIds };
 }
 
 export function deleteDependencyById(id: number) {
