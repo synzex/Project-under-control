@@ -18,7 +18,7 @@ export interface Task {
   start_date: string;
   end_date: string;
   status: string;
-  assignee_id: number | null;
+  assignee: string | null;    // ← было: assignee_id: number | null
 }
 
 // ----- То, что используется во фронте (после адаптеров) -----
@@ -38,7 +38,7 @@ export interface TaskView {
   start: string;
   end: string;
   status: string;
-  assigneeId: number | null;
+  assignee: string | null;  
   deps: number[];
 }
 
@@ -47,7 +47,7 @@ export interface TaskFormValues {
   name: string;
   start: string;
   end: string;
-  assignee: string;
+  assignee: string;         
   status: TaskStatus;
   description: string;
   deps: number[];

@@ -16,11 +16,6 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL
-  );
-
   CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL,
@@ -29,9 +24,8 @@ db.exec(`
     start_date TEXT NOT NULL,
     end_date TEXT NOT NULL,
     status TEXT DEFAULT 'todo',
-    assignee_id INTEGER,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-    FOREIGN KEY (assignee_id) REFERENCES users(id) ON DELETE SET NULL
+    assignee TEXT,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS dependencies (
@@ -52,14 +46,6 @@ db.exec(`
 // ------------------------------------------------------------
 // 2. SEED ДАННЫЕ
 // ------------------------------------------------------------
-const userCount = db.prepare('SELECT count(*) as count FROM users').get() as { count: number };
-if (userCount.count === 0) {
-  const insertUser = db.prepare('INSERT INTO users (name) VALUES (?)');
-  insertUser.run('Иван Иванов');
-  insertUser.run('Василий Сидоров');
-  insertUser.run('Дмитрий Федорук');
-}
-
 const projectCount = db.prepare('SELECT count(*) as count FROM projects').get() as { count: number };
 if (projectCount.count === 0) {
   const insertProject = db.prepare(`
@@ -75,14 +61,14 @@ if (projectCount.count === 0) {
   const projectId = projectInfo.lastInsertRowid;
 
   const insertTask = db.prepare(`
-    INSERT INTO tasks (project_id, title, description, start_date, end_date, status, assignee_id)
+    INSERT INTO tasks (project_id, title, description, start_date, end_date, status, assignee)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
-  insertTask.run(projectId, 'Анализ требований', 'Сбор требований от заказчика', '2026-09-01', '2026-09-05', 'done', 3);
-  insertTask.run(projectId, 'Дизайн',           'Макеты и UI-kit',             '2026-09-06', '2026-09-15', 'in_progress', 2);
-  insertTask.run(projectId, 'Разработка',       'Верстка и бэкенд',            '2026-09-16', '2026-10-01', 'todo', 1);
-  insertTask.run(projectId, 'Тестирование',     'QA и багфикс',                '2026-10-02', '2026-10-10', 'todo', 1);
+  insertTask.run(projectId, 'Анализ требований', 'Сбор требований от заказчика', '2026-09-01', '2026-09-05', 'done',        'Дмитрий Федорук');
+  insertTask.run(projectId, 'Дизайн',           'Макеты и UI-kit',             '2026-09-06', '2026-09-15', 'in_progress', 'Василий Сидоров');
+  insertTask.run(projectId, 'Разработка',       'Верстка и бэкенд',            '2026-09-16', '2026-10-01', 'todo',        'Иван Иванов');
+  insertTask.run(projectId, 'Тестирование',     'QA и багфикс',                '2026-10-02', '2026-10-10', 'todo',        'Иван Иванов');
 
   const insertDep = db.prepare(`
     INSERT INTO dependencies (task_id, depends_on_task_id) VALUES (?, ?)
@@ -121,22 +107,14 @@ export function createProject(data: {
 // ---------- Задачи ----------
 export function getTasksByProject(projectId: number) {
   return db.prepare(`
-    SELECT t.*, u.name AS assignee_name
-    FROM tasks t
-    LEFT JOIN users u ON t.assignee_id = u.id
-    WHERE t.project_id = ?
-    ORDER BY t.start_date
+    SELECT * FROM tasks
+    WHERE project_id = ?
+    ORDER BY start_date
   `).all(projectId);
 }
 
 export function getTaskById(id: number) {
   return db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
-}
-
-// Проверка: существует ли пользователь с таким id
-export function userExists(id: number): boolean {
-  const row = db.prepare('SELECT id FROM users WHERE id = ?').get(id);
-  return !!row;
 }
 
 export function createTask(data: {
@@ -146,19 +124,10 @@ export function createTask(data: {
   start_date: string;
   end_date: string;
   status?: string;
-  assignee_id?: number | null;
+  assignee?: string | null;
 }) {
-  // Санитизация assignee_id — защита от FOREIGN KEY
-  let safeAssignee: number | null = null;
-  if (data.assignee_id !== null && data.assignee_id !== undefined) {
-    const n = Number(data.assignee_id);
-    if (Number.isInteger(n) && n > 0 && userExists(n)) {
-      safeAssignee = n;
-    }
-  }
-
   const info = db.prepare(`
-    INSERT INTO tasks (project_id, title, description, start_date, end_date, status, assignee_id)
+    INSERT INTO tasks (project_id, title, description, start_date, end_date, status, assignee)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
     data.project_id,
@@ -167,35 +136,26 @@ export function createTask(data: {
     data.start_date,
     data.end_date,
     data.status || 'todo',
-    safeAssignee
+    data.assignee?.trim() || null
   );
   return getTaskById(info.lastInsertRowid as number);
 }
 
-// НОВОЕ: обновление задачи
 export function updateTask(id: number, data: {
   title?: string;
   description?: string;
   start_date?: string;
   end_date?: string;
   status?: string;
-  assignee_id?: number | null;
+  assignee?: string | null;
 }) {
   const existing = getTaskById(id) as any;
   if (!existing) return null;
 
-  // Санитизация assignee_id
-  let safeAssignee: number | null = existing.assignee_id;
-  if (data.assignee_id !== undefined) {
-    if (data.assignee_id === null) {
-      safeAssignee = null;
-    } else {
-      const n = Number(data.assignee_id);
-      if (Number.isInteger(n) && n > 0 && userExists(n)) {
-        safeAssignee = n;
-      }
-      // иначе оставляем как было
-    }
+  // assignee: undefined → оставить как было; null/пусто → очистить; строка → установить
+  let safeAssignee: string | null = existing.assignee;
+  if (data.assignee !== undefined) {
+    safeAssignee = data.assignee?.trim() || null;
   }
 
   db.prepare(`
@@ -205,7 +165,7 @@ export function updateTask(id: number, data: {
         start_date  = COALESCE(?, start_date),
         end_date    = COALESCE(?, end_date),
         status      = COALESCE(?, status),
-        assignee_id = ?
+        assignee    = ?
     WHERE id = ?
   `).run(
     data.title ?? null,
@@ -248,32 +208,21 @@ export function createDependency(task_id: number, depends_on_task_id: number) {
 
 export function setTaskDependencies(taskId: number, dependsOnIds: number[]) {
   const tx = db.transaction(() => {
-    // Удаляем все текущие зависимости этой задачи
     db.prepare('DELETE FROM dependencies WHERE task_id = ?').run(taskId);
-
-    // Вставляем новые
     const insert = db.prepare(
       'INSERT INTO dependencies (task_id, depends_on_task_id) VALUES (?, ?)'
     );
     for (const depId of dependsOnIds) {
-      if (depId !== taskId) {
-        insert.run(taskId, depId);
-      }
+      if (depId !== taskId) insert.run(taskId, depId);
     }
   });
   tx();
-
   return { task_id: taskId, deps: dependsOnIds };
 }
 
 export function deleteDependencyById(id: number) {
   const info = db.prepare('DELETE FROM dependencies WHERE id = ?').run(id);
   return info.changes > 0;
-}
-
-// ---------- Пользователи ----------
-export function getAllUsers() {
-  return db.prepare('SELECT * FROM users').all();
 }
 
 // ---------- Зависимые задачи (рекурсивно) ----------

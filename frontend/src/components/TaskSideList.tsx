@@ -29,7 +29,7 @@ export function TaskSideList({ tasks, highlightedIds, onOpenTask }: TaskSideList
             >
               <div className="min-w-0 flex-1">
                 <div className={`text-sm truncate ${es === 'overdue' ? 'text-error font-medium' : ''}`}>{t.title}</div>
-                <div className="text-[11px] text-on-surface-variant truncate">{t.assigneeId ?? '—'}</div>
+                <div className="text-[11px] text-on-surface-variant truncate">{t.assignee ?? '—'}</div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_BADGE_CLASSES[es]}`}>

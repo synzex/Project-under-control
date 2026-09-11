@@ -4,8 +4,8 @@ import { addDays, todayISO, toISO } from '../utils/date';
 import { wouldCreateCycle } from '../utils/domain';
 
 interface TaskDrawerProps {
-  task: TaskView | null;             // ← Task → TaskView
-  otherTasksInProject: TaskView[];   // ← Task[] → TaskView[]
+  task: TaskView | null;
+  otherTasksInProject: TaskView[];
   onClose: () => void;
   onSave: (values: TaskFormValues) => void;
   onDelete: () => void;
@@ -20,13 +20,13 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
 export function TaskDrawer({ task, otherTasksInProject, onClose, onSave, onDelete }: TaskDrawerProps) {
   const isEdit = !!task;
 
-  const [name, setName] = useState(task?.title ?? '');            // ← name → title
-  const [start, setStart] = useState(task?.start ?? todayISO());  // ✅ start есть
-  const [end, setEnd] = useState(task?.end ?? toISO(addDays(new Date(), 5)));  // ✅ end есть
-  const [assignee, setAssignee] = useState(task?.assigneeId?.toString() ?? ''); // ← assigneeId → string
+  const [name, setName] = useState(task?.title ?? '');
+  const [start, setStart] = useState(task?.start ?? todayISO());
+  const [end, setEnd] = useState(task?.end ?? toISO(addDays(new Date(), 5)));
+  const [assignee, setAssignee] = useState(task?.assignee ?? '');   // ← было: task?.assigneeId?.toString()
   const [status, setStatus] = useState<TaskStatus>(task?.status as TaskStatus ?? 'planned');
   const [description, setDescription] = useState(task?.description ?? '');
-  const [deps, setDeps] = useState<number[]>(task?.deps ?? []);   // ← string[] → number[]
+  const [deps, setDeps] = useState<number[]>(task?.deps ?? []);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -35,7 +35,7 @@ export function TaskDrawer({ task, otherTasksInProject, onClose, onSave, onDelet
     return () => cancelAnimationFrame(id);
   }, []);
 
-  function toggleDep(id: number) {                                // ← string → number
+  function toggleDep(id: number) {
     setDeps((prev) => (prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]));
   }
 
@@ -106,12 +106,12 @@ export function TaskDrawer({ task, otherTasksInProject, onClose, onSave, onDelet
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-on-surface-variant">Ответственный (ID пользователя)</label>
+            <label className="text-xs font-medium text-on-surface-variant">Ответственный</label>
             <input
               value={assignee}
               onChange={(e) => setAssignee(e.target.value)}
               type="text"
-              placeholder="Например, 1"
+              placeholder="Например, Иван Иванов"
               className="h-10 px-3 rounded-xl bg-surface-container-low text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>

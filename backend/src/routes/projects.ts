@@ -3,7 +3,6 @@ import {
   getAllProjects,
   getProjectById,
   createProject,
-  getAllUsers
 } from '../db';
 
 const router = Router();
@@ -15,16 +14,6 @@ router.get('/', (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Ошибка получения проектов' });
-  }
-});
-
-// GET /api/projects/users/all — все пользователи
-router.get('/users/all', (req, res) => {
-  try {
-    res.json(getAllUsers());
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Ошибка получения пользователей' });
   }
 });
 
@@ -46,8 +35,6 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const { title, description, start_date, end_date } = req.body;
-
-    console.log(title, description, start_date, end_date);
 
     if (!title || !start_date || !end_date) {
       return res.status(400).json({ error: 'Поля title, start_date и end_date обязательны' });

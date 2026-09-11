@@ -35,12 +35,6 @@ export function useAppState() {
     return p;
   }, []);
 
-  const parseAssignee = (s: string): number | null => {
-    if (!s || !s.trim()) return null;
-    const n = Number(s.trim());
-    return Number.isInteger(n) && n > 0 ? n : null;
-  };
-
   const createTask = useCallback(async (projectId: number, values: TaskFormValues) => {
     // 1. Создаём задачу
     const t = await api.createTaskRemote(projectId, {
@@ -49,7 +43,7 @@ export function useAppState() {
       start_date: values.start,
       end_date: values.end,
       status: values.status,
-      assignee_id: parseAssignee(values.assignee),
+      assignee: values.assignee?.trim() || null,   // ← было: assignee_id: parseAssignee(...)
     });
 
     // 2. Сохраняем зависимости
@@ -71,7 +65,7 @@ export function useAppState() {
       start_date: values.start,
       end_date: values.end,
       status: values.status,
-      assignee_id: parseAssignee(values.assignee),
+      assignee: values.assignee?.trim() || null,   // ← было: assignee_id: parseAssignee(...)
     });
 
     // 2. Обновляем зависимости (заменяем все)

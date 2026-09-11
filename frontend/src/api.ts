@@ -7,7 +7,6 @@ const API = '/api'; // Vite проксирует на http://localhost:4000
 
 // ============================================================
 // АДАПТЕРЫ
-// Преобразуют объекты из БД в формат, который ждёт фронт.
 // ============================================================
 
 export function adaptProject(p: any) {
@@ -15,43 +14,22 @@ export function adaptProject(p: any) {
     id: p.id,
     title: p.title,
     description: p.description || '',
-    start: p.start_date,   // ← переименование
-    end: p.end_date,       // ← переименование
+    start: p.start_date,
+    end: p.end_date,
   };
 }
 
 export function adaptTask(t: any) {
   return {
     id: t.id,
-    projectId: t.project_id,      // ← переименование
+    projectId: t.project_id,
     title: t.title,
     description: t.description || '',
-    start: t.start_date,          // ← переименование
-    end: t.end_date,              // ← переименование
+    start: t.start_date,
+    end: t.end_date,
     status: t.status,
-    assigneeId: t.assignee_id ?? null,
-    deps: [] as number[],          // заполним отдельно из links
-  };
-}
-
-// Обратные адаптеры: фронт → БД (для POST/PUT)
-export function toProjectPayload(values: any) {
-  return {
-    title: values.title,
-    description: values.description,
-    start_date: values.start,   // ← переименование
-    end_date: values.end,       // ← переименование
-  };
-}
-
-export function toTaskPayload(values: any) {
-  return {
-    title: values.title,
-    description: values.description,
-    start_date: values.start,   // ← переименование
-    end_date: values.end,       // ← переименование
-    status: values.status,
-    assignee_id: values.assigneeId ?? null,
+    assignee: t.assignee ?? null,     // ← было: assigneeId: t.assignee_id
+    deps: [] as number[],
   };
 }
 
@@ -99,10 +77,8 @@ export async function fetchTasksByProject(projectId: number) {
   if (!res.ok) throw new Error('Не удалось загрузить задачи');
   const raw = await res.json(); // { tasks, links }
 
-  // Преобразуем задачи
   const tasks = raw.tasks.map((t: any) => {
     const adapted = adaptTask(t);
-    // Из links достаём deps (зависимости для этой задачи)
     adapted.deps = raw.links
       .filter((l: any) => l.target === t.id)
       .map((l: any) => l.source);
@@ -118,7 +94,7 @@ export async function createTaskRemote(projectId: number, data: {
   start_date: string;
   end_date: string;
   status?: string;
-  assignee_id?: number | null;
+  assignee?: string | null;      // ← было: assignee_id
 }) {
   const res = await fetch(`${API}/tasks/project/${projectId}`, {
     method: 'POST',
@@ -138,7 +114,7 @@ export async function updateTaskRemote(id: number, data: {
   start_date?: string;
   end_date?: string;
   status?: string;
-  assignee_id?: number | null;
+  assignee?: string | null;      // ← было: assignee_id
 }) {
   const res = await fetch(`${API}/tasks/${id}`, {
     method: 'PUT',
@@ -194,15 +170,5 @@ export async function shiftTaskRemote(id: number, days: number) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Ошибка сдвига задачи');
   }
-  return res.json();
-}
-
-// ============================================================
-// ПОЛЬЗОВАТЕЛИ
-// ============================================================
-
-export async function fetchUsers() {
-  const res = await fetch(`${API}/users`);
-  if (!res.ok) throw new Error('Не удалось загрузить пользователей');
   return res.json();
 }

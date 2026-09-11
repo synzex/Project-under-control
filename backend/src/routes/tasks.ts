@@ -32,7 +32,7 @@ router.get('/project/:projectId', (req, res) => {
 router.post('/project/:projectId', (req, res) => {
   try {
     const projectId = Number(req.params.projectId);
-    const { title, description, start_date, end_date, status, assignee_id } = req.body;
+    const { title, description, start_date, end_date, status, assignee } = req.body;
 
     if (!title || !start_date || !end_date) {
       return res.status(400).json({ error: 'Поля title, start_date и end_date обязательны' });
@@ -48,7 +48,7 @@ router.post('/project/:projectId', (req, res) => {
       start_date,
       end_date,
       status,
-      assignee_id
+      assignee,
     });
     res.status(201).json(task);
   } catch (error) {
@@ -137,7 +137,7 @@ router.put('/:id/dependencies', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { title, description, start_date, end_date, status, assignee_id } = req.body;
+    const { title, description, start_date, end_date, status, assignee } = req.body;
 
     if (end_date && start_date && new Date(end_date) < new Date(start_date)) {
       return res.status(400).json({ error: 'Дата окончания раньше даты начала' });
@@ -149,7 +149,7 @@ router.put('/:id', (req, res) => {
       start_date,
       end_date,
       status,
-      assignee_id,
+      assignee,
     });
 
     if (!updated) return res.status(404).json({ error: 'Задача не найдена' });
